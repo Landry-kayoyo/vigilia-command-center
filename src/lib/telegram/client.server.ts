@@ -6,14 +6,18 @@ export async function deriveWebhookSecret(ownerId: string, tokenHash: string): P
   return (await sha256Base64Url(`vigilia-tg-wh:${ownerId}:${tokenHash}`)).slice(0, 64);
 }
 
-export async function validateBotToken(token: string): Promise<{ ok: boolean; username?: string; botId?: number; error?: string }> {
+export async function validateBotToken(token: string): Promise<{ ok: boolean; username?: string | undefined; botId?: number | undefined; error?: string | undefined }> {
   try {
     const res = await fetch(`${TG_API}/bot${token}/getMe`, { signal: AbortSignal.timeout(10_000) });
     const json = (await res.json()) as { ok: boolean; result?: { id: number; username?: string }; description?: string };
     if (!res.ok || !json.ok || !json.result) {
       return { ok: false, error: json.description ?? `Erreur Telegram (${res.status})` };
     }
-    return { ok: true, username: json.result.username, botId: json.result.id };
+    return {
+      ok: true,
+      ...(json.result.username !== undefined ? { username: json.result.username } : {}),
+      botId: json.result.id,
+    };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Impossible de contacter Telegram" };
   }
