@@ -8,6 +8,13 @@
       "when": 1795529225047,
       "tag": "0000_vigilia_v1_1_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795580835632,
+      "tag": "0001_secure_personal_workspace",
+      "breakpoints": true
     }
   ]
 }

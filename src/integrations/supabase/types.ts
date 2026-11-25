@@ -969,6 +969,24 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_access: {
+        Row: {
+          created_at: string
+          owner_email: string | null
+          singleton: boolean
+        }
+        Insert: {
+          created_at?: string
+          owner_email?: string | null
+          singleton?: boolean
+        }
+        Update: {
+          created_at?: string
+          owner_email?: string | null
+          singleton?: boolean
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

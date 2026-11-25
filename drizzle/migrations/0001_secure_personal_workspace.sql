@@ -1,0 +1,18 @@
+CREATE TABLE public.workspace_access (singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton), owner_email text, created_at timestamptz NOT NULL DEFAULT now());
+GRANT ALL ON public.workspace_access TO service_role;
+ALTER TABLE public.workspace_access ENABLE ROW LEVEL SECURITY;
+CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN IF NEW.email_confirmed_at IS NOT NULL AND EXISTS (SELECT 1 FROM public.workspace_access WHERE singleton AND lower(owner_email)=lower(NEW.email)) THEN INSERT INTO public.user_roles(user_id,role) VALUES(NEW.id,'owner') ON CONFLICT DO NOTHING; PERFORM public.bootstrap_owner_workspace(NEW.id); END IF; RETURN NEW; END; $$;
+CREATE TRIGGER on_auth_owner_confirmed AFTER UPDATE OF email_confirmed_at ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+REVOKE EXECUTE ON FUNCTION public.bootstrap_owner_workspace(uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.bootstrap_owner_workspace(uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC,anon,authenticated;
+REVOKE EXECUTE ON FUNCTION public.has_role(uuid,public.app_role) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.has_role(uuid,public.app_role) TO authenticated,service_role;
+REVOKE ALL ON public.integrations, public.ai_provider_keys, public.telegram_links, public.approvals, public.missions, public.mission_steps, public.audit_logs FROM authenticated;
+GRANT SELECT (id,owner_id,provider,name,status,config,permissions,last_tested_at,last_error,created_at,updated_at) ON public.integrations TO authenticated;
+GRANT SELECT (id,owner_id,provider,label,model_default,fallback_model,base_url,key_fingerprint,shared_quota_group,enabled,priority,status,circuit_open_until,consecutive_failures,requests_count,errors_count,tokens_used,monthly_token_limit,last_error_code,last_error_message,last_used_at,created_at) ON public.ai_provider_keys TO authenticated;
+GRANT SELECT (id,owner_id,bot_username,chat_id,verified,webhook_active,notify_incidents,notify_missions,notify_approvals,last_error,created_at,updated_at) ON public.telegram_links TO authenticated;
+GRANT SELECT ON public.approvals,public.missions,public.mission_steps,public.audit_logs TO authenticated;
+ALTER TABLE public.missions ADD CONSTRAINT mission_budget_bounds CHECK (token_budget BETWEEN 1000 AND 100000), ADD CONSTRAINT mission_steps_bounds CHECK (max_steps BETWEEN 1 AND 8);
+CREATE UNIQUE INDEX single_open_monitor_incident ON public.incidents(monitor_id) WHERE status <> 'resolved' AND monitor_id IS NOT NULL;
+DO $$ DECLARE t text; BEGIN FOREACH t IN ARRAY ARRAY['projects','monitors','checks','incidents','incident_events','ai_agents','missions','mission_steps','approvals','integrations','ai_provider_keys','ai_failover_logs','telegram_links','telegram_messages','memories','audit_logs'] LOOP EXECUTE format('CREATE POLICY personal_owner_only ON public.%I AS RESTRICTIVE FOR ALL TO authenticated USING (public.has_role(auth.uid(), ''owner''::public.app_role)) WITH CHECK (public.has_role(auth.uid(), ''owner''::public.app_role))',t); END LOOP; END $$;
