@@ -193,6 +193,10 @@ async function callSingleProvider(
   return { text: text || "Aucune réponse générée.", tokensUsed: json.usage?.total_tokens ?? 0 };
 }
 
+export async function testProviderKey(key: ProviderKeyRow): Promise<{ text: string; tokensUsed: number }> {
+  return callSingleProvider(key, key.model_default, "Réponds uniquement OK.", "Test de connexion au fournisseur IA.");
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function runRoutedCompletion(admin: any, ownerId: string, system: string, prompt: string, missionId?: string): Promise<{ text: string; tokensUsed: number; providerLabel: string; model: string }> {
   const { data: rawKeys } = await admin.from("ai_provider_keys").select("*").eq("owner_id", ownerId).order("priority");
